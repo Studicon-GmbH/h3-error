@@ -1,36 +1,57 @@
 <template>
-  <div>
-    <button @click="simulateError">Simulate Error</button>
+  <div style="display: flex; gap: 20px; margin-bottom: 20px;">
+    <button @click="callWorkingEndpoint">Working (errors immediately)</button>
+    <span>Error: {{ errorWorking }}</span>
+  </div>
+  <div style="display: flex; gap: 20px; margin-bottom: 20px;">
+    <input type="file" @change="file = ($event.target as HTMLInputElement).files![0]">
+    <button @click="callNotWorkingEndpoint">Not working (hangs indefinetly)</button>
+    <span>Error: {{ errorNotWorking }}</span>
   </div>
 </template>
 
 <script setup lang="ts">
-import { createError } from '#app';
-import { readFormData } from 'h3';
+import { H3Error } from 'h3';
 
-const simulateError = async () => {
+const errorWorking = ref<H3Error>();
+const errorNotWorking = ref<H3Error>();
+const file = ref<File>();
+
+const createFormData = () => {
+  const formData = new FormData();
+  formData.append("file", new Blob(["test"], { type: "text/plain" }), "test.txt");
+  if (file.value) formData.append("file2", file.value);
+  formData.append("data", JSON.stringify({ test: "test" }));
+  return formData;
+};
+
+const callNotWorkingEndpoint = async () => {
+  console.log("Calling not working endpoint");
   try {
-    // Simulate a request event
-    const event = {
-      req: {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'multipart/form-data; boundary=someBoundary',
-        },
-        body: '---someBoundary\r\nContent-Disposition: form-data; name="test"\r\n\r\nstring\r\n---someBoundary--',
-      },
-    };
-
-    // Not working when called before error is thrown
-    // await readFormData(event as any);
-    throw createError({
-      statusCode: 500,
-      statusMessage: "Test Error",
-    });
-    // Working when called after error is thrown
-    //await readFormData(event as any);
+    await $fetch("/api/not-working", {
+      method: "POST",
+      body: createFormData(),
+    })
   } catch (error) {
-    console.error("Fehler aufgetreten:", error);
+    console.log("Error", error);
+    if (error instanceof H3Error) {
+      errorNotWorking.value = error
+    }
+  }
+};
+
+const callWorkingEndpoint = async () => {
+  console.log("Calling working endpoint");
+  try {
+    await $fetch("/api/working", {
+      method: "POST",
+      body: createFormData(),
+    })
+  } catch (error) {
+    console.log("Error", error);
+    if (error instanceof H3Error) {
+      errorWorking.value = error
+    }
   }
 };
 </script>
